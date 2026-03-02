@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (our main data store)
+  postgres:
+    image: postgres:15-alpine
+    container_name: otc-postgres
+    environment:
+      POSTGRES_USER: otc_user
+      POSTGRES_PASSWORD: otc_password
+      POSTGRES_DB: otc_platform
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U otc_user' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for caching FX rates and session data)
+  redis:
+    image: redis:7-alpine
+    container_name: otc-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prisma Studio (visual database browser)
+  # Access at http://localhost:5555
+  prisma-studio:
+    image: node:20-alpine
+    container_name: otc-prisma-studio
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - '5555:5555'
+    depends_on:
+      - postgres
+    command: sh -c "npm install && npx prisma studio"
+    environment:
+      - DATABASE_URL=postgresql://otc_user:otc_password@postgres:5432/otc_platform
+
+volumes:
+  postgres_data:
+  redis_data:

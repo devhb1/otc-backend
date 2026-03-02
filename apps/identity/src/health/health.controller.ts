@@ -1,0 +1,86 @@
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { DatabaseService } from '@app/database';
+
+/**
+ * Health Check Controller
+ * 
+ * Essential for production deployments:
+ * - Railway uses this to check if service is healthy
+ * - Load balancers use this for health checks
+ * - Monitoring tools ping this endpoint
+ * 
+ * Returns 200 OK if service is healthy, 503 if unhealthy
+ */
+@ApiTags('health')
+@Controller('health')
+export class HealthController {
+    constructor(private readonly db: DatabaseService) { }
+
+    @Get()
+    @ApiOperation({ summary: 'Health check endpoint' })
+    @ApiResponse({
+        status: 200,
+        description: 'Service is healthy',
+        schema: {
+            example: {
+                status: 'ok',
+                timestamp: '2026-03-01T12:00:00.000Z',
+                service: 'identity',
+                database: 'connected',
+                uptime: 3600.5,
+            },
+        },
+    })
+    @ApiResponse({ status: 503, description: 'Service unavailable' })
+    async check() {
+        const startTime = process.hrtime();
+
+        // Check database connection
+        let dbStatus = 'disconnected';
+        try {
+            await this.db.$queryRaw`SELECT 1`;
+            dbStatus = 'connected';
+        } catch (error) {
+            dbStatus = 'error';
+        }
+
+        const [seconds, nanoseconds] = process.hrtime(startTime);
+        const responseTime = seconds * 1000 + nanoseconds / 1000000; // Convert to ms
+
+        return {
+            status: dbStatus === 'connected' ? 'ok' : 'degraded',
+            timestamp: new Date().toISOString(),
+            service: 'identity',
+            database: dbStatus,
+            uptime: process.uptime(),
+            responseTime: `${responseTime.toFixed(2)}ms`,
+            environment: process.env.NODE_ENV || 'development',
+        };
+    }
+
+    @Get('ready')
+    @ApiOperation({ summary: 'Readiness check - is service ready to accept traffic?' })
+    async readiness() {
+        try {
+            // Check if database is accessible
+            await this.db.$queryRaw`SELECT 1`;
+
+            return {
+                ready: true,
+                timestamp: new Date().toISOString(),
+            };
+        } catch (error) {
+            throw new Error('Service not ready');
+        }
+    }
+
+    @Get('live')
+    @ApiOperation({ summary: 'Liveness check - is service alive?' })
+    async liveness() {
+        return {
+            alive: true,
+            timestamp: new Date().toISOString(),
+        };
+    }
+}

@@ -1,14 +1,285 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ==========================================
+// OTC PLATFORM - DATABASE SCHEMA
+// ==========================================
+// This is the single source of truth for database structure
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+  ENABLER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum OrderStatus {
+  CREATED
+  PAYMENT_PENDING
+  PAYMENT_UPLOADED
+  RELEASED
+  COMPLETED
+  DISPUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  passwordHash  String       @map("password_hash")
+  role          UserRole     @default(BUYER)
+  status        UserStatus   @default(ACTIVE)
+  kycStatus     KycStatus    @default(PENDING) @map("kyc_status")
+  referralCode  String?      @unique @map("referral_code")
+  referredBy    String?      @map("referred_by")
+  
+  // Email Verification
+  isVerified    Boolean      @default(false) @map("is_verified")
+  verifyCode    String?      @map("verify_code")
+  verifyCodeExpiry DateTime? @map("verify_code_expiry")
+  
+  // Relations
+  wallets       Wallet[]
+  ordersAsBuyer Order[]      @relation("BuyerOrders")
+  ordersAsSeller Order[]     @relation("SellerOrders")
+  ads           OtcAd[]
+  kycRecords    KycRecord[]
+  auditLogs     AuditLog[]
+  
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  
+  @@index([email])
+  @@index([role])
+  @@index([kycStatus])
+  @@index([isVerified])
+  @@map("users")
+}
+
+model KycRecord {
+  id            String       @id @default(uuid())
+  userId        String       @map("user_id")
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  providerId    String?      @map("provider_id")
+  status        KycStatus    @default(PENDING)
+  documentUrl   String?      @map("document_url")
+  metadata      Json?
+  
+  submittedAt   DateTime     @default(now()) @map("submitted_at")
+  reviewedAt    DateTime?    @map("reviewed_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@map("kyc_records")
+}
+
+model Wallet {
+  id            String          @id @default(uuid())
+  userId        String          @map("user_id")
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  currency      String
+  balance       Decimal         @default(0) @db.Decimal(18, 8)
+  lockedBalance Decimal         @default(0) @map("locked_balance") @db.Decimal(18, 8)
+  
+  ledgerEntries LedgerEntry[]
+  
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  
+  @@unique([userId, currency])
+  @@index([userId])
+  @@map("wallets")
+}
+
+model LedgerEntry {
+  id            String          @id @default(uuid())
+  walletId      String          @map("wallet_id")
+  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  type          LedgerEntryType
+  amount        Decimal         @db.Decimal(18, 8)
+  balance       Decimal         @db.Decimal(18, 8)
+  
+  referenceId   String?         @map("reference_id")
+  referenceType String?         @map("reference_type")
+  description   String?
+  metadata      Json?
+  
+  createdAt     DateTime        @default(now()) @map("created_at")
+  
+  @@index([walletId])
+  @@index([referenceId])
+  @@index([createdAt])
+  @@map("ledger_entries")
+}
+
+model OtcAd {
+  id              String    @id @default(uuid())
+  sellerId        String    @map("seller_id")
+  seller          User      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  
+  basePair        String    @map("base_pair")
+  baseCurrency    String    @map("base_currency")
+  priceType       String    @map("price_type")
+  marginPercent   Decimal   @map("margin_percent") @db.Decimal(5, 2)
+  
+  minLimit        Decimal   @map("min_limit") @db.Decimal(18, 8)
+  maxLimit        Decimal   @map("max_limit") @db.Decimal(18, 8)
+  
+  paymentMethods  String[]  @map("payment_methods")
+  region          String
+  
+  isActive        Boolean   @default(true) @map("is_active")
+  stock           Decimal   @db.Decimal(18, 8)
+  
+  orders          Order[]
+  
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  @@index([sellerId])
+  @@index([isActive])
+  @@index([region])
+  @@map("otc_ads")
+}
+
+model Order {
+  id              String       @id @default(uuid())
+  
+  buyerId         String       @map("buyer_id")
+  buyer           User         @relation("BuyerOrders", fields: [buyerId], references: [id])
+  sellerId        String       @map("seller_id")
+  seller          User         @relation("SellerOrders", fields: [sellerId], references: [id])
+  
+  adId            String       @map("ad_id")
+  ad              OtcAd        @relation(fields: [adId], references: [id])
+  
+  fiatAmount      Decimal      @map("fiat_amount") @db.Decimal(18, 2)
+  fiatCurrency    String       @map("fiat_currency")
+  cryptoAmount    Decimal      @map("crypto_amount") @db.Decimal(18, 8)
+  cryptoCurrency  String       @map("crypto_currency")
+  
+  exchangeRate    Decimal      @map("exchange_rate") @db.Decimal(18, 8)
+  
+  status          OrderStatus  @default(CREATED)
+  
+  paymentMethod   String       @map("payment_method")
+  paymentProofUrl String?      @map("payment_proof_url")
+  
+  expiresAt       DateTime?    @map("expires_at")
+  completedAt     DateTime?    @map("completed_at")
+  
+  disputes        Dispute[]
+  stateHistory    OrderStateHistory[]
+  
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderStateHistory {
+  id              String       @id @default(uuid())
+  orderId         String       @map("order_id")
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  fromStatus      OrderStatus? @map("from_status")
+  toStatus        OrderStatus  @map("to_status")
+  
+  triggeredBy     String       @map("triggered_by")
+  reason          String?
+  metadata        Json?
+  
+  createdAt       DateTime     @default(now()) @map("created_at")
+  
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_state_history")
+}
+
+model Dispute {
+  id              String         @id @default(uuid())
+  orderId         String         @map("order_id")
+  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  initiatorId     String         @map("initiator_id")
+  reason          String
+  description     String?
+  evidenceUrls    String[]       @map("evidence_urls")
+  
+  status          DisputeStatus  @default(OPEN)
+  
+  adminNotes      String?        @map("admin_notes")
+  resolution      String?
+  resolvedBy      String?        @map("resolved_by")
+  resolvedAt      DateTime?      @map("resolved_at")
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  @@index([orderId])
+  @@index([status])
+  @@map("disputes")
+}
+
+model AuditLog {
+  id              String         @id @default(uuid())
+  
+  userId          String?        @map("user_id")
+  user            User?          @relation(fields: [userId], references: [id])
+  action          String
+  entityType      String         @map("entity_type")
+  entityId        String         @map("entity_id")
+  
+  changes         Json?
+  ipAddress       String?        @map("ip_address")
+  userAgent       String?        @map("user_agent")
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+

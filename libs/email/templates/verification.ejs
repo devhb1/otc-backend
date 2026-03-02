@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - OTC Platform</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .otp-box {
+            background-color: #f3f4f6;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .otp-code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #3b82f6;
+            letter-spacing: 8px;
+            margin: 10px 0;
+        }
+
+        .footer {
+            background-color: #f9fafb;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Welcome to OTC Platform</h1>
+        </div>
+
+        <div class="content">
+            <h2>Email Verification Required</h2>
+            <p>Hi <%= userName %>,</p>
+
+            <p>Thank you for joining OTC Platform! To complete your registration and start trading,
+                please verify your email address using the code below:</p>
+
+            <div class="otp-box">
+                <p style="margin: 0; color: #374151; font-weight: bold;">Your Verification Code:</p>
+                <div class="otp-code">
+                    <%= otpCode %>
+                </div>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">Valid for 10 minutes</p>
+            </div>
+
+            <p>Enter this code on the verification page to activate your account.</p>
+
+            <p style="color: #6b7280; font-size: 14px;">
+                <strong>Note:</strong> If you didn't create an account with OTC Platform, please ignore this email.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>Best regards,<br>The OTC Platform Team</p>
+            <p style="margin-top: 10px;">
+                <a href="#" style="color: #3b82f6;">OTC Platform</a>
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>
