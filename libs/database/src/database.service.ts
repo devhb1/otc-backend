@@ -1,8 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 
 /**
  * DatabaseService - Prisma Client Wrapper
@@ -15,7 +13,6 @@ import { Pool } from 'pg';
  * 2. Auto-disconnects on module destruction
  * 3. Query logging in development (helps with debugging)
  * 4. Centralized error handling
- * 5. PostgreSQL adapter for Prisma 7 compatibility
  * 
  * @example
  * // Create a user
@@ -34,12 +31,12 @@ export class DatabaseService extends PrismaClient implements OnModuleInit, OnMod
     private readonly logger = new Logger(DatabaseService.name);
 
     constructor(private configService: ConfigService) {
-        const connectionString = configService.get<string>('DATABASE_URL');
-        const pool = new Pool({ connectionString });
-        const adapter = new PrismaPg(pool);
-
         super({
-            adapter,
+            datasources: {
+                db: {
+                    url: configService.get<string>('DATABASE_URL'),
+                },
+            },
             log: process.env.NODE_ENV === 'development'
                 ? ['query', 'info', 'warn', 'error']
                 : ['error'],
