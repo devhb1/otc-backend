@@ -81,12 +81,19 @@ export class EmailService {
                 otpCode: otp,
             });
 
-            await this.transporter.sendMail({
+            // Add 5 second timeout to prevent blocking
+            const sendMailPromise = this.transporter.sendMail({
                 from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
                 to: email,
                 subject: 'Verify Your Email - OTC Platform',
                 html,
             });
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Email timeout after 5s')), 5000)
+            );
+
+            await Promise.race([sendMailPromise, timeoutPromise]);
 
             this.logger.log(`✅ OTP email sent to ${email}`);
             return true;
@@ -110,12 +117,19 @@ export class EmailService {
                 userName,
             });
 
-            await this.transporter.sendMail({
+            // Add 5 second timeout to prevent blocking
+            const sendMailPromise = this.transporter.sendMail({
                 from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
                 to: email,
                 subject: '🎉 Welcome to OTC Platform!',
                 html,
             });
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Email timeout after 5s')), 5000)
+            );
+
+            await Promise.race([sendMailPromise, timeoutPromise]);
 
             this.logger.log(`✅ Welcome email sent to ${email}`);
             return true;
