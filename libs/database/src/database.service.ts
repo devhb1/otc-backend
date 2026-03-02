@@ -32,11 +32,6 @@ export class DatabaseService extends PrismaClient implements OnModuleInit, OnMod
 
     constructor(private configService: ConfigService) {
         super({
-            datasources: {
-                db: {
-                    url: configService.get<string>('DATABASE_URL'),
-                },
-            },
             log: process.env.NODE_ENV === 'development'
                 ? ['query', 'info', 'warn', 'error']
                 : ['error'],
