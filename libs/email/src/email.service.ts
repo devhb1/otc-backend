@@ -104,7 +104,7 @@ export class EmailService {
                 otpCode: otp,
             });
 
-            // Add 5 second timeout to prevent blocking
+            // Add 15 second timeout to prevent blocking
             const sendMailPromise = this.transporter.sendMail({
                 from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
                 to: email,
@@ -113,7 +113,7 @@ export class EmailService {
             });
 
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Email timeout after 5s')), 5000)
+                setTimeout(() => reject(new Error('Email timeout after 15s')), 15000)
             );
 
             await Promise.race([sendMailPromise, timeoutPromise]);
@@ -146,7 +146,7 @@ export class EmailService {
                 userName,
             });
 
-            // Add 5 second timeout to prevent blocking
+            // Add 15 second timeout to prevent blocking
             const sendMailPromise = this.transporter.sendMail({
                 from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
                 to: email,
@@ -155,7 +155,7 @@ export class EmailService {
             });
 
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Email timeout after 5s')), 5000)
+                setTimeout(() => reject(new Error('Email timeout after 15s')), 15000)
             );
 
             await Promise.race([sendMailPromise, timeoutPromise]);

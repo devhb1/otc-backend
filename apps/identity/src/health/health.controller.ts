@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DatabaseService } from '@app/database';
+import { EmailService } from '@app/email';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * Health Check Controller
@@ -15,7 +17,11 @@ import { DatabaseService } from '@app/database';
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-    constructor(private readonly db: DatabaseService) { }
+    constructor(
+        private readonly db: DatabaseService,
+        private readonly emailService: EmailService,
+        private readonly configService: ConfigService,
+    ) { }
 
     @Get()
     @ApiOperation({ summary: 'Health check endpoint' })
@@ -81,6 +87,37 @@ export class HealthController {
         return {
             alive: true,
             timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Get('smtp')
+    @ApiOperation({ summary: 'SMTP configuration and connection test' })
+    @ApiResponse({
+        status: 200,
+        description: 'SMTP diagnostic information',
+    })
+    async smtpCheck() {
+        // Get SMTP configuration (hide password)
+        const smtpConfig = {
+            host: this.configService.get<string>('SMTP_HOST'),
+            port: this.configService.get<number>('SMTP_PORT'),
+            user: this.configService.get<string>('SMTP_USER'),
+            from: this.configService.get<string>('SMTP_FROM'),
+            hasPassword: !!this.configService.get<string>('SMTP_PASS'),
+            passwordLength: this.configService.get<string>('SMTP_PASS')?.length || 0,
+        };
+
+        // Test SMTP connection
+        const connectionTest = await this.emailService.testConnection();
+
+        return {
+            timestamp: new Date().toISOString(),
+            configuration: smtpConfig,
+            connectionTest,
+            status: connectionTest.success ? 'configured' : 'misconfigured',
+            message: connectionTest.success
+                ? 'SMTP is properly configured and connection successful'
+                : 'SMTP connection failed - check credentials and network',
         };
     }
 }
