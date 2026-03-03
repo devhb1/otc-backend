@@ -27,24 +27,46 @@ async function bootstrap() {
     // Enable CORS for frontend communication
     const allowedOrigins = [
         process.env.FRONTEND_URL || 'http://localhost:3000',
-        process.env.CORS_ORIGIN || 'http://localhost:3001',
+        process.env.CORS_ORIGIN || 'http://localhost:3000',
+        'http://localhost:3001', // Local backend
     ];
+
+    // Also allow Vercel preview and production deployments
+    const isAllowedOrigin = (origin: string): boolean => {
+        // Check exact matches
+        if (allowedOrigins.includes(origin)) return true;
+
+        // Allow all Vercel deployments (*.vercel.app)
+        if (origin.endsWith('.vercel.app')) return true;
+
+        // Allow Railway preview deployments
+        if (origin.endsWith('.up.railway.app')) return true;
+
+        return false;
+    };
 
     app.enableCors({
         origin: (origin, callback) => {
-            // Allow requests with no origin (mobile apps, Postman, etc.)
-            if (!origin) return callback(null, true);
+            // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+            if (!origin) {
+                logger.debug('CORS: Request with no origin (allowed)');
+                return callback(null, true);
+            }
 
-            if (allowedOrigins.includes(origin)) {
+            if (isAllowedOrigin(origin)) {
+                logger.debug(`CORS: Request from ${origin} (allowed)`);
                 callback(null, true);
             } else {
-                logger.warn(`CORS blocked request from: ${origin}`);
+                logger.warn(`❌ CORS blocked request from: ${origin}`);
+                logger.warn(`   Allowed origins: ${allowedOrigins.join(', ')}`);
+                logger.warn(`   Tip: Add this origin to FRONTEND_URL or CORS_ORIGIN environment variable`);
                 callback(new Error('Not allowed by CORS'));
             }
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+        exposedHeaders: ['Authorization'],
     });
 
     // Global validation pipe (validates all DTOs automatically)
