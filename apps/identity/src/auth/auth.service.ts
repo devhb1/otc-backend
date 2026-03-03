@@ -383,4 +383,45 @@ export class AuthService {
         }
         return code;
     }
+
+    /**
+     * Test email configuration (diagnostic)
+     * 
+     * Tests SMTP connection and sends a test email.
+     * Useful for debugging email issues in production.
+     */
+    async testEmailConfig(email: string) {
+        try {
+            // Test SMTP connection
+            const connectionTest = await this.emailService.testConnection();
+
+            // Send test email
+            const emailSent = email
+                ? await this.emailService.sendTestEmail(email)
+                : false;
+
+            return {
+                smtp: {
+                    host: this.configService.get('SMTP_HOST'),
+                    port: this.configService.get('SMTP_PORT'),
+                    user: this.configService.get('SMTP_USER'),
+                    from: this.configService.get('SMTP_FROM'),
+                    configured: !!(
+                        this.configService.get('SMTP_HOST') &&
+                        this.configService.get('SMTP_USER') &&
+                        this.configService.get('SMTP_PASS')
+                    ),
+                },
+                connection: connectionTest,
+                testEmailSent: emailSent,
+                timestamp: new Date().toISOString(),
+            };
+        } catch (error) {
+            this.logger.error('Email config test failed:', error);
+            return {
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
 }

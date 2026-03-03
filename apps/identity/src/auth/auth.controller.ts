@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshTokenDto, VerifyEmailDto, ResendOtpDto } from './dto';
@@ -170,5 +170,23 @@ export class AuthController {
     @ApiResponse({ status: 400, description: 'Email already verified or user not found' })
     async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
         return this.authService.resendOtp(resendOtpDto.email);
+    }
+
+    /**
+     * Test email configuration (diagnostic endpoint)
+     * 
+     * Tests SMTP configuration and sends a test email.
+     * Useful for diagnosing email issues in production.
+     * 
+     * Should be disabled or protected in production.
+     */
+    @Get('test-email')
+    @ApiOperation({ summary: 'Test email configuration (diagnostic)' })
+    @ApiResponse({
+        status: 200,
+        description: 'Email configuration test results',
+    })
+    async testEmail(@Query('email') email: string) {
+        return this.authService.testEmailConfig(email);
     }
 }

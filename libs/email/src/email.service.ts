@@ -54,7 +54,30 @@ export class EmailService {
             this.logger.log('✅ Email service ready - SMTP connection verified');
         } catch (error) {
             this.logger.error('❌ SMTP connection failed:', error.message);
+            this.logger.error('Full error:', JSON.stringify(error, null, 2));
             this.logger.warn('⚠️  App will continue, but emails will fail');
+        }
+    }
+
+    /**
+     * Test SMTP connection (diagnostic)
+     * Returns detailed connection status
+     */
+    async testConnection(): Promise<any> {
+        try {
+            await this.transporter.verify();
+            return {
+                success: true,
+                message: 'SMTP connection successful',
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: 'SMTP connection failed',
+                error: error.message,
+                code: error.code,
+                command: error.command,
+            };
         }
     }
 
@@ -99,6 +122,12 @@ export class EmailService {
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message);
+            this.logger.error('Error details:', {
+                code: error.code,
+                command: error.command,
+                response: error.response,
+                responseCode: error.responseCode,
+            });
             return false;
         }
     }
