@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import * as ejs from 'ejs';
 import * as path from 'path';
 
@@ -32,23 +33,21 @@ export class EmailService {
 
         const smtpPort = this.configService.get<number>('SMTP_PORT') || 587;
 
-        // Initialize nodemailer transporter
-        // Use port 465 with secure:true for cloud environments (Railway blocks port 587)
-        this.transporter = nodemailer.createTransport({
+        // Initialize nodemailer transporter with SendGrid SMTP
+        const transportOptions: SMTPTransport.Options = {
             host: this.configService.get<string>('SMTP_HOST'),
             port: smtpPort,
-            secure: smtpPort === 465, // true for 465, false for other ports
+            secure: smtpPort === 465, // true for 465, false for 587
             auth: {
                 user: this.configService.get<string>('SMTP_USER'),
                 pass: this.configService.get<string>('SMTP_PASS'),
             },
-            // Add connection timeout
             connectionTimeout: 10000, // 10 seconds
             greetingTimeout: 10000,
             socketTimeout: 10000,
-            // Force IPv4 - Railway doesn't support IPv6 to Gmail SMTP
-            family: 4,
-        });
+        };
+
+        this.transporter = nodemailer.createTransport(transportOptions);
 
         // Verify connection on startup
         this.verifyConnection();
