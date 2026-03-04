@@ -5,7 +5,13 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": false,
-    "tsConfigPath": "tsconfig.json"
+    "tsConfigPath": "tsconfig.json",
+    "assets": [
+      {
+        "include": "libs/email/templates/**/*",
+        "outDir": "dist"
+      }
+    ]
   },
   "monorepo": true,
   "root": "apps/identity",
@@ -89,6 +95,21 @@
       "sourceRoot": "libs/types/src",
       "compilerOptions": {
         "tsConfigPath": "libs/types/tsconfig.lib.json"
+      }
+    },
+    "email": {
+      "type": "library",
+      "root": "libs/email",
+      "entryFile": "index",
+      "sourceRoot": "libs/email/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/email/tsconfig.lib.json",
+        "assets": [
+          {
+            "include": "../templates/**/*",
+            "outDir": "dist/libs/email"
+          }
+        ]
       }
     }
   }
