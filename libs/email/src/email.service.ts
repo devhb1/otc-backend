@@ -26,8 +26,8 @@ export class EmailService {
 
     constructor(private readonly configService: ConfigService) {
         // Use __dirname to get path relative to compiled code location
-        // Works in both dev (runs from source) and prod (runs from dist)
-        this.templatesPath = path.join(__dirname, '..', '..', 'templates');
+        // In production: dist/libs/email/src -> go up to email, then into templates
+        this.templatesPath = path.join(__dirname, '..', 'templates');
 
         // Initialize SendGrid HTTP API
         const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
