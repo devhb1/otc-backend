@@ -31,13 +31,16 @@ export class EmailService {
     constructor(private readonly configService: ConfigService) {
         this.templatesPath = path.join(process.cwd(), 'libs', 'email', 'templates');
 
-        const smtpPort = this.configService.get<number>('SMTP_PORT') || 587;
+        // Parse SMTP_PORT as integer (environment variables are strings!)
+        const smtpPortString = this.configService.get<string>('SMTP_PORT');
+        const smtpPort = smtpPortString ? parseInt(smtpPortString, 10) : 587;
 
         // Initialize nodemailer transporter with SendGrid SMTP
         const transportOptions: SMTPTransport.Options = {
             host: this.configService.get<string>('SMTP_HOST'),
             port: smtpPort,
-            secure: smtpPort === 465, // true for 465, false for 587
+            secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+            requireTLS: smtpPort === 587, // Force STARTTLS for port 587
             auth: {
                 user: this.configService.get<string>('SMTP_USER'),
                 pass: this.configService.get<string>('SMTP_PASS'),
