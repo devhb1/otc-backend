@@ -193,20 +193,48 @@ POST /auth/login
 
 ## Email Configuration
 
-### SMTP Setup
+### SendGrid HTTP API Setup (Recommended for Production)
 
-Add to `.env`:
+**Why SendGrid HTTP API?**
+- ✅ Works on Railway and cloud platforms (SMTP ports often blocked)
+- ✅ Uses HTTPS (port 443) instead of SMTP (ports 587/465)
+- ✅ Free tier: 100 emails/day
+- ✅ Better deliverability and analytics
+- ✅ No connection timeouts
 
+**Setup Steps:**
+
+1. **Create SendGrid Account:**
+   - Go to https://signup.sendgrid.com/
+   - Verify your email
+
+2. **Verify Sender Email:**
+   - Go to https://app.sendgrid.com/settings/sender_auth/senders
+   - Click "Create New Sender"
+   - Enter your email address (e.g., youremail@gmail.com)
+   - Verify it via email link
+
+3. **Create API Key:**
+   - Go to https://app.sendgrid.com/settings/api_keys
+   - Click "Create API Key"
+   - Name: "OTC Platform"
+   - Permissions: **Full Access** (or "Mail Send" minimum)
+   - Copy the API key (starts with `SG.`)
+
+4. **Configure .env:**
 ```bash
-# Email (SMTP Configuration)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password-here
-SMTP_FROM=noreply@otcplatform.com
+SENDGRID_API_KEY=SG.your-sendgrid-api-key-here
+SMTP_FROM=youremail@gmail.com  # Must match verified sender
 ```
 
-### Gmail Setup (Recommended for Development)
+5. **Update Railway Variables:**
+   - Add `SENDGRID_API_KEY` to Railway
+   - Add `SMTP_FROM` to Railway
+   - Remove old SMTP variables if present
+
+### Alternative: Gmail SMTP (Development Only)
+
+⚠️ **NOT RECOMMENDED** for production - many cloud platforms block SMTP ports.
 
 1. **Enable 2-Factor Authentication:**
    - Go to https://myaccount.google.com/security
@@ -216,7 +244,6 @@ SMTP_FROM=noreply@otcplatform.com
    - Go to https://myaccount.google.com/apppasswords
    - Select "Mail" and your device
    - Copy the 16-character password
-   - Use this as `SMTP_PASS`
 
 3. **Configure .env:**
 ```bash
@@ -227,20 +254,24 @@ SMTP_PASS=abcd efgh ijkl mnop  # App password (remove spaces)
 SMTP_FROM=noreply@otcplatform.com
 ```
 
-### Other SMTP Providers
+⚠️ **Note:** Gmail SMTP will NOT work on Railway due to port blocking.
+
+### Other Providers
+
+**SendGrid SMTP** (not recommended - use HTTP API instead):
+```bash
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USER=apikey
+SMTP_PASS=SG.your-api-key
+```
 
 **Outlook/Hotmail:**
 ```bash
 SMTP_HOST=smtp-mail.outlook.com
 SMTP_PORT=587
-```
-
-**SendGrid:**
-```bash
-SMTP_HOST=smtp.sendgrid.net
-SMTP_PORT=587
-SMTP_USER=apikey  # Literally "apikey"
-SMTP_PASS=your-sendgrid-api-key
+SMTP_USER=youremail@outlook.com
+SMTP_PASS=your-password
 ```
 
 **AWS SES:**
@@ -579,25 +610,71 @@ const link = `https://app.com/verify?token=${token}`;
 
 ### Email Not Sending
 
-**Check 1: SMTP Credentials**
+**Check 1: SendGrid API Configuration**
 ```bash
-# Test SMTP connection
-curl -v smtp://smtp.gmail.com:587
+# Test if SendGrid is configured
+curl https://your-backend.up.railway.app/api/v1/health/smtp
+
+# Should return:
+{
+  "configuration": {
+    "hasApiKey": true,
+    "apiKeyValid": true
+  },
+  "status": "configured"
+}
 ```
 
-**Check 2: App Password (Gmail)**
-- Must use App Password, not regular password
-- 2FA must be enabled first
+**Check 2: SendGrid API Key**
+- Must start with `SG.`
+- Must have Full Access or Mail Send permission
+- Verify in: https://app.sendgrid.com/settings/api_keys
 
-**Check 3: Firewall**
-- Port 587 must be open
-- Some ISPs block port 25
+**Check 3: Sender Email Verified**
+- Go to: https://app.sendgrid.com/settings/sender_auth/senders
+- Your `SMTP_FROM` email must have green checkmark
+- If not verified, click verification email link
 
-**Check 4: Logs**
+**Check 4: Railway Environment Variables**
 ```bash
-# Backend logs show:
-"✅ OTP email sent to user@example.com"  # Success
-"❌ Failed to send OTP: Connection refused"  # SMTP issue
+# Required variables in Railway:
+SENDGRID_API_KEY=SG.your-api-key
+SMTP_FROM=your-verified-email@gmail.com
+```
+
+**Check 5: Backend Logs**
+```bash
+# Railway logs should show:
+"✅ SendGrid API initialized"
+"✅ OTP email sent to user@example.com"
+
+# If errors:
+"❌ SendGrid API key not configured"
+"❌ Failed to send OTP email: 401 Unauthorized"  # Invalid API key
+"❌ Failed to send OTP email: 403 Forbidden"     # Sender not verified
+```
+
+**Common Issues:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `SendGrid API not configured` | Missing API key | Add `SENDGRID_API_KEY` to `.env` |
+| `401 Unauthorized` | Invalid API key | Regenerate key in SendGrid dashboard |
+| `403 Forbidden` | Sender not verified | Verify `SMTP_FROM` email in SendGrid |
+| `emailSent: false` | API key missing on Railway | Add to Railway variables |
+
+**Debug Commands:**
+```bash
+# Test registration
+curl -X POST 'https://your-backend.up.railway.app/api/v1/auth/register' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"email":"test@gmail.com","password":"Test123@Pass","role":"BUYER"}'
+
+# Expected response:
+{
+  "emailSent": true,  # ← Should be true!
+  "message": "Registration successful! Please check your email..."
+}
 ```
 
 ### User Can't Verify
@@ -621,16 +698,21 @@ curl -v smtp://smtp.gmail.com:587
 
 Before deploying email verification to production:
 
-- [ ] SMTP credentials configured (not Gmail personal account)
+- [ ] SendGrid account created and verified
+- [ ] SendGrid API key created (Full Access or Mail Send)
+- [ ] Sender email verified in SendGrid dashboard
+- [ ] `SENDGRID_API_KEY` and `SMTP_FROM` configured in Railway
 - [ ] Rate limiting implemented (3 OTP requests per hour)
 - [ ] Email templates tested (desktop, mobile, dark mode)
-- [ ] Error handling tested (SMTP down, invalid OTP, expired OTP)
+- [ ] Error handling tested (SendGrid down, invalid OTP, expired OTP)
+- [ ] Health endpoint tested: `/api/v1/health/smtp`
 - [ ] Database migration run
 - [ ] Existing users marked as verified (if applicable)
 - [ ] Frontend verification page implemented
 - [ ] Login page shows "verify email" message
 - [ ] Analytics added (registration success rate, verification rate)
 - [ ] Monitoring added (OTP send failures, verification failures)
+- [ ] SendGrid activity monitoring: https://app.sendgrid.com/email_activity
 
 ---
 

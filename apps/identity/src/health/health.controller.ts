@@ -91,23 +91,24 @@ export class HealthController {
     }
 
     @Get('smtp')
-    @ApiOperation({ summary: 'SMTP configuration and connection test' })
+    @ApiOperation({ summary: 'SendGrid API configuration and connection test' })
     @ApiResponse({
         status: 200,
-        description: 'SMTP diagnostic information',
+        description: 'SendGrid API diagnostic information',
     })
     async smtpCheck() {
-        // Get SMTP configuration (hide password)
+        // Get SendGrid API configuration (hide API key)
+        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') || 
+                       this.configService.get<string>('SMTP_PASS');
+        
         const smtpConfig = {
-            host: this.configService.get<string>('SMTP_HOST'),
-            port: this.configService.get<number>('SMTP_PORT'),
-            user: this.configService.get<string>('SMTP_USER'),
             from: this.configService.get<string>('SMTP_FROM'),
-            hasPassword: !!this.configService.get<string>('SMTP_PASS'),
-            passwordLength: this.configService.get<string>('SMTP_PASS')?.length || 0,
+            hasApiKey: !!apiKey,
+            apiKeyLength: apiKey?.length || 0,
+            apiKeyValid: apiKey?.startsWith('SG.') || false,
         };
 
-        // Test SMTP connection
+        // Test SendGrid connection
         const connectionTest = await this.emailService.testConnection();
 
         return {
@@ -116,8 +117,8 @@ export class HealthController {
             connectionTest,
             status: connectionTest.success ? 'configured' : 'misconfigured',
             message: connectionTest.success
-                ? 'SMTP is properly configured and connection successful'
-                : 'SMTP connection failed - check credentials and network',
+                ? 'SendGrid API is properly configured and ready'
+                : 'SendGrid API connection failed - check API key',
         };
     }
 }

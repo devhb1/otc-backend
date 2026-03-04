@@ -68,21 +68,21 @@ echo "   Step 3: Email Configuration"
 echo "=============================================="
 echo ""
 echo "Do you want to configure email (OTP) now? (recommended)"
-echo "  You'll need a Gmail App Password"
-echo "  Setup guide: https://myaccount.google.com/apppasswords"
+echo "  You'll need a SendGrid API Key (free: 100 emails/day)"
+echo "  Setup guide: https://app.sendgrid.com/settings/api_keys"
 echo ""
 read -p "Configure email? (y/n): " CONFIGURE_EMAIL
 
 if [ "$CONFIGURE_EMAIL" = "y" ] || [ "$CONFIGURE_EMAIL" = "Y" ]; then
     echo ""
-    read -p "Enter your Gmail address: " SMTP_USER
-    read -p "Enter your Gmail App Password (16 chars, no spaces): " SMTP_PASS
-    SMTP_HOST="smtp.gmail.com"
-    SMTP_PORT="587"
-    SMTP_FROM="noreply@otcplatform.com"
+    read -p "Enter your verified sender email: " SMTP_FROM
+    read -p "Enter your SendGrid API Key (starts with SG.): " SENDGRID_API_KEY
     
-    if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
+    if [ -z "$SMTP_FROM" ] || [ -z "$SENDGRID_API_KEY" ]; then
         echo -e "${YELLOW}⚠️  Email configuration skipped (credentials empty)${NC}"
+        CONFIGURE_EMAIL="n"
+    elif [[ ! "$SENDGRID_API_KEY" == SG.* ]]; then
+        echo -e "${YELLOW}⚠️  Invalid API key (must start with SG.)${NC}"
         CONFIGURE_EMAIL="n"
     else
         echo -e "${GREEN}✓ Email configured${NC}"
@@ -119,10 +119,7 @@ echo "  FRONTEND_URL: $FRONTEND_URL"
 echo "  NODE_ENV: production"
 
 if [ "$CONFIGURE_EMAIL" = "y" ] || [ "$CONFIGURE_EMAIL" = "Y" ]; then
-    echo "  SMTP_HOST: $SMTP_HOST"
-    echo "  SMTP_PORT: $SMTP_PORT"
-    echo "  SMTP_USER: $SMTP_USER"
-    echo "  SMTP_PASS: ${SMTP_PASS:0:4}..."
+    echo "  SENDGRID_API_KEY: ${SENDGRID_API_KEY:0:10}..."
     echo "  SMTP_FROM: $SMTP_FROM"
 fi
 
@@ -151,10 +148,7 @@ railway variables set CORS_ORIGIN="$FRONTEND_URL"
 railway variables set NODE_ENV="production"
 
 if [ "$CONFIGURE_EMAIL" = "y" ] || [ "$CONFIGURE_EMAIL" = "Y" ]; then
-    railway variables set SMTP_HOST="$SMTP_HOST"
-    railway variables set SMTP_PORT="$SMTP_PORT"
-    railway variables set SMTP_USER="$SMTP_USER"
-    railway variables set SMTP_PASS="$SMTP_PASS"
+    railway variables set SENDGRID_API_KEY="$SENDGRID_API_KEY"
     railway variables set SMTP_FROM="$SMTP_FROM"
 fi
 

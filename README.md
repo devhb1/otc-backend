@@ -341,17 +341,20 @@ JWT_REFRESH_SECRET=<generated-secret-2>
 
 ## 📧 Email Configuration
 
-Identity service sends OTP verification emails via SMTP.
+Identity service sends OTP verification emails via **SendGrid HTTP API**.
 
-**Gmail Setup (Recommended):**
+**SendGrid Setup (Recommended for Railway/Cloud):**
 
-1. Enable 2-Step Verification: https://myaccount.google.com/security
-2. Generate App Password: https://myaccount.google.com/apppasswords
-3. Add to `.env`:
+1. Create account: https://signup.sendgrid.com/ (100 emails/day free)
+2. Verify sender email: https://app.sendgrid.com/settings/sender_auth/senders
+3. Create API key: https://app.sendgrid.com/settings/api_keys (Full Access)
+4. Add to `.env`:
    ```bash
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-16-char-app-password
+   SENDGRID_API_KEY=SG.your-api-key-here
+   SMTP_FROM=your-verified-email@gmail.com
    ```
+
+**Why SendGrid?** Railway and many cloud platforms block SMTP ports (587, 465) for spam prevention. SendGrid HTTP API uses HTTPS (port 443) which is always allowed.
 
 📚 **Full guide:** [EMAIL_VERIFICATION_GUIDE.md](./EMAIL_VERIFICATION_GUIDE.md)
 
@@ -389,9 +392,9 @@ DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
 JWT_ACCESS_SECRET=generate-with-openssl-rand-base64-32
 JWT_REFRESH_SECRET=generate-with-openssl-rand-base64-32
 
-# Email (Gmail)
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-gmail-app-password
+# Email (SendGrid HTTP API)
+SENDGRID_API_KEY=SG.your-api-key-here
+SMTP_FROM=your-verified-email@gmail.com
 
 # Frontend URL
 FRONTEND_URL=http://localhost:3000
@@ -426,11 +429,12 @@ npx prisma generate
 
 ### Email Not Sending
 ```
-Error: SMTP connection failed
+Error: SendGrid API not configured
 ```
 **Solution:**
-- Verify Gmail App Password (not regular password)
-- Check SMTP_USER and SMTP_PASS in `.env`
+- Verify SENDGRID_API_KEY in `.env` (starts with SG.)
+- Verify sender email in SendGrid dashboard
+- Check Railway environment variables match local `.env`
 - See [EMAIL_VERIFICATION_GUIDE.md](./EMAIL_VERIFICATION_GUIDE.md)
 
 ### Port Already in Use
