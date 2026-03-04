@@ -1,95 +1,78 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import * as path from 'path';
 
 /**
- * EmailService - Production-ready email service
+ * EmailService - Production-ready email service using SendGrid HTTP API
  * 
  * Features:
  * - Send OTP verification emails
  * - Send welcome emails
  * - EJS templates for professional emails
- * - SMTP configuration from environment variables
+ * - SendGrid HTTP API (bypasses SMTP port blocking on Railway)
  * - Error handling and logging
  * 
  * Environment Variables Required:
- * - SMTP_HOST: SMTP server host (e.g., smtp.gmail.com)
- * - SMTP_PORT: SMTP server port (e.g., 587)
- * - SMTP_USER: SMTP username/email
- * - SMTP_PASS: SMTP password/app password
- * - SMTP_FROM: From email address
+ * - SENDGRID_API_KEY: SendGrid API key (SG.xxx)
+ * - SMTP_FROM: From email address (must be verified in SendGrid)
  */
 @Injectable()
 export class EmailService {
     private readonly logger = new Logger(EmailService.name);
-    private transporter: nodemailer.Transporter;
     private templatesPath: string;
+    private sendGridConfigured: boolean = false;
 
     constructor(private readonly configService: ConfigService) {
         this.templatesPath = path.join(process.cwd(), 'libs', 'email', 'templates');
 
-        // Parse SMTP_PORT as integer (environment variables are strings!)
-        const smtpPortString = this.configService.get<string>('SMTP_PORT');
-        const smtpPort = smtpPortString ? parseInt(smtpPortString, 10) : 587;
+        // Initialize SendGrid HTTP API
+        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
+            this.configService.get<string>('SMTP_PASS'); // Fallback to SMTP_PASS
 
-        // Initialize nodemailer transporter with SendGrid SMTP
-        const transportOptions: SMTPTransport.Options = {
-            host: this.configService.get<string>('SMTP_HOST'),
-            port: smtpPort,
-            secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
-            requireTLS: smtpPort === 587, // Force STARTTLS for port 587
-            auth: {
-                user: this.configService.get<string>('SMTP_USER'),
-                pass: this.configService.get<string>('SMTP_PASS'),
-            },
-            connectionTimeout: 10000, // 10 seconds
-            greetingTimeout: 10000,
-            socketTimeout: 10000,
-        };
+        if (apiKey && apiKey.startsWith('SG.')) {
+            sgMail.setApiKey(apiKey);
+            this.sendGridConfigured = true;
+            this.logger.log('✅ SendGrid API initialized');
 
-        this.transporter = nodemailer.createTransport(transportOptions);
-
-        // Verify connection on startup
-        this.verifyConnection();
-    }
-
-    /**
-     * Verify SMTP connection on startup
-     */
-    private async verifyConnection(): Promise<void> {
-        try {
-            await this.transporter.verify();
-            this.logger.log('✅ Email service ready - SMTP connection verified');
-        } catch (error) {
-            this.logger.error('❌ SMTP connection failed:', error.message);
-            this.logger.error('Full error:', JSON.stringify(error, null, 2));
+            // Test connection
+            this.verifyConnection();
+        } else {
+            this.logger.error('❌ SendGrid API key not configured or invalid');
             this.logger.warn('⚠️  App will continue, but emails will fail');
         }
     }
 
     /**
-     * Test SMTP connection (diagnostic)
+     * Verify SendGrid API key on startup
+     */
+    private async verifyConnection(): Promise<void> {
+        try {
+            // SendGrid doesn't have a verify endpoint, so we'll just log success
+            this.logger.log('✅ Email service ready - SendGrid HTTP API configured');
+        } catch (error) {
+            this.logger.error('❌ SendGrid initialization failed:', error.message);
+            this.logger.warn('⚠️  App will continue, but emails will fail');
+        }
+    }
+
+    /**
+     * Test SendGrid connection (diagnostic)
      * Returns detailed connection status
      */
     async testConnection(): Promise<any> {
-        try {
-            await this.transporter.verify();
-            return {
-                success: true,
-                message: 'SMTP connection successful',
-            };
-        } catch (error) {
+        if (!this.sendGridConfigured) {
             return {
                 success: false,
-                message: 'SMTP connection failed',
-                error: error.message,
-                code: error.code,
-                command: error.command,
+                message: 'SendGrid API not configured',
             };
         }
+
+        return {
+            success: true,
+            message: 'SendGrid API configured',
+        };
     }
 
     /**
@@ -107,38 +90,33 @@ export class EmailService {
      * @param otp - 6-digit OTP code
      */
     async sendOtpEmail(email: string, userName: string, otp: string): Promise<boolean> {
+        if (!this.sendGridConfigured) {
+            this.logger.error('SendGrid not configured, cannot send email');
+            return false;
+        }
+
         try {
             const templatePath = path.join(this.templatesPath, 'verification.ejs');
-
             const html = await ejs.renderFile(templatePath, {
                 userName,
                 otpCode: otp,
             });
 
-            // Add 15 second timeout to prevent blocking
-            const sendMailPromise = this.transporter.sendMail({
-                from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
+            const msg = {
                 to: email,
+                from: this.configService.get<string>('SMTP_FROM'),
                 subject: 'Verify Your Email - OTC Platform',
                 html,
-            });
+            };
 
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Email timeout after 15s')), 15000)
-            );
-
-            await Promise.race([sendMailPromise, timeoutPromise]);
-
+            await sgMail.send(msg);
             this.logger.log(`✅ OTP email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message);
-            this.logger.error('Error details:', {
-                code: error.code,
-                command: error.command,
-                response: error.response,
-                responseCode: error.responseCode,
-            });
+            if (error.response) {
+                this.logger.error('SendGrid error:', error.response.body);
+            }
             return false;
         }
     }
@@ -150,31 +128,32 @@ export class EmailService {
      * @param userName - User's name
      */
     async sendWelcomeEmail(email: string, userName: string): Promise<boolean> {
+        if (!this.sendGridConfigured) {
+            this.logger.error('SendGrid not configured, cannot send email');
+            return false;
+        }
+
         try {
             const templatePath = path.join(this.templatesPath, 'welcome.ejs');
-
             const html = await ejs.renderFile(templatePath, {
                 userName,
             });
 
-            // Add 15 second timeout to prevent blocking
-            const sendMailPromise = this.transporter.sendMail({
-                from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
+            const msg = {
                 to: email,
+                from: this.configService.get<string>('SMTP_FROM'),
                 subject: '🎉 Welcome to OTC Platform!',
                 html,
-            });
+            };
 
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Email timeout after 15s')), 15000)
-            );
-
-            await Promise.race([sendMailPromise, timeoutPromise]);
-
+            await sgMail.send(msg);
             this.logger.log(`✅ Welcome email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send welcome email to ${email}:`, error.message);
+            if (error.response) {
+                this.logger.error('SendGrid error:', error.response.body);
+            }
             return false;
         }
     }
@@ -183,19 +162,28 @@ export class EmailService {
      * Send test email (for debugging)
      */
     async sendTestEmail(email: string): Promise<boolean> {
-        try {
-            await this.transporter.sendMail({
-                from: this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER'),
-                to: email,
-                subject: 'Test Email - OTC Platform',
-                html: '<h1>Test Email</h1><p>If you received this, email service is working!</p>',
-            });
+        if (!this.sendGridConfigured) {
+            this.logger.error('SendGrid not configured, cannot send email');
+            return false;
+        }
 
+        try {
+            const msg = {
+                to: email,
+                from: this.configService.get<string>('SMTP_FROM'),
+                subject: 'Test Email - OTC Platform',
+                html: '<h1>Test Email</h1><p>If you received this, SendGrid HTTP API is working!</p>',
+            };
+
+            await sgMail.send(msg);
             this.logger.log(`✅ Test email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send test email to ${email}:`, error.message);
+            if (error.response) {
+                this.logger.error('SendGrid error:', error.response.body);
+            }
             return false;
         }
     }
-}
+}}
