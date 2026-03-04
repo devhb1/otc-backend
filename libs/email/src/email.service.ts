@@ -25,7 +25,9 @@ export class EmailService {
     private sendGridConfigured: boolean = false;
 
     constructor(private readonly configService: ConfigService) {
-        this.templatesPath = path.join(process.cwd(), 'libs', 'email', 'templates');
+        // Use __dirname to get path relative to compiled code location
+        // Works in both dev (runs from source) and prod (runs from dist)
+        this.templatesPath = path.join(__dirname, '..', '..', 'templates');
 
         // Initialize SendGrid HTTP API
         const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
