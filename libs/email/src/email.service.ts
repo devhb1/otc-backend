@@ -102,9 +102,10 @@ export class EmailService {
                 otpCode: otp,
             });
 
+            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
             const msg = {
                 to: email,
-                from: this.configService.get<string>('SMTP_FROM'),
+                from: fromEmail,
                 subject: 'Verify Your Email - OTC Platform',
                 html,
             };
@@ -139,9 +140,10 @@ export class EmailService {
                 userName,
             });
 
+            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
             const msg = {
                 to: email,
-                from: this.configService.get<string>('SMTP_FROM'),
+                from: fromEmail,
                 subject: '🎉 Welcome to OTC Platform!',
                 html,
             };
@@ -168,9 +170,10 @@ export class EmailService {
         }
 
         try {
+            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
             const msg = {
                 to: email,
-                from: this.configService.get<string>('SMTP_FROM'),
+                from: fromEmail,
                 subject: 'Test Email - OTC Platform',
                 html: '<h1>Test Email</h1><p>If you received this, SendGrid HTTP API is working!</p>',
             };
@@ -186,4 +189,4 @@ export class EmailService {
             return false;
         }
     }
-}}
+}
