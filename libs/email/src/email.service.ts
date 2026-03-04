@@ -30,15 +30,22 @@ export class EmailService {
     constructor(private readonly configService: ConfigService) {
         this.templatesPath = path.join(process.cwd(), 'libs', 'email', 'templates');
 
+        const smtpPort = this.configService.get<number>('SMTP_PORT') || 587;
+
         // Initialize nodemailer transporter
+        // Use port 465 with secure:true for cloud environments (Railway blocks port 587)
         this.transporter = nodemailer.createTransport({
             host: this.configService.get<string>('SMTP_HOST'),
-            port: this.configService.get<number>('SMTP_PORT') || 587,
-            secure: this.configService.get<number>('SMTP_PORT') === 465,
+            port: smtpPort,
+            secure: smtpPort === 465, // true for 465, false for other ports
             auth: {
                 user: this.configService.get<string>('SMTP_USER'),
                 pass: this.configService.get<string>('SMTP_PASS'),
             },
+            // Add connection timeout
+            connectionTimeout: 10000, // 10 seconds
+            greetingTimeout: 10000,
+            socketTimeout: 10000,
         });
 
         // Verify connection on startup
