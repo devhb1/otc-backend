@@ -46,6 +46,8 @@ export class EmailService {
             connectionTimeout: 10000, // 10 seconds
             greetingTimeout: 10000,
             socketTimeout: 10000,
+            // Force IPv4 - Railway doesn't support IPv6 to Gmail SMTP
+            family: 4,
         });
 
         // Verify connection on startup
