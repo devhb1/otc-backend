@@ -98,9 +98,9 @@ export class HealthController {
     })
     async smtpCheck() {
         // Get SendGrid API configuration (hide API key)
-        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') || 
-                       this.configService.get<string>('SMTP_PASS');
-        
+        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
+            this.configService.get<string>('SMTP_PASS');
+
         const smtpConfig = {
             from: this.configService.get<string>('SMTP_FROM'),
             hasApiKey: !!apiKey,
