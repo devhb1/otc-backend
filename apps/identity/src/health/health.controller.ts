@@ -91,23 +91,28 @@ export class HealthController {
     }
 
     @Get('smtp')
-    @ApiOperation({ summary: 'MailerSend API configuration and connection test' })
+    @ApiOperation({ summary: 'Gmail SMTP configuration and connection test' })
     @ApiResponse({
         status: 200,
-        description: 'MailerSend API diagnostic information',
+        description: 'Gmail SMTP diagnostic information',
     })
     async smtpCheck() {
-        // Get MailerSend API configuration (hide API key)
-        const apiKey = this.configService.get<string>('MAILERSEND_API_KEY');
-        
+        // Get SMTP configuration (hide password)
+        const smtpHost = this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com';
+        const smtpPort = this.configService.get<number>('SMTP_PORT') || 465;
+        const smtpUser = this.configService.get<string>('SMTP_USER');
+        const smtpPass = this.configService.get<string>('SMTP_PASS');
+
         const smtpConfig = {
-            from: this.configService.get<string>('SMTP_FROM'),
-            hasApiKey: !!apiKey,
-            apiKeyLength: apiKey?.length || 0,
-            apiKeyValid: apiKey?.startsWith('mlsn.') || false,
+            host: smtpHost,
+            port: smtpPort,
+            user: smtpUser,
+            hasPassword: !!smtpPass,
+            passwordLength: smtpPass?.length || 0,
+            from: this.configService.get<string>('SMTP_FROM') || smtpUser,
         };
 
-        // Test MailerSend connection
+        // Test SMTP connection
         const connectionTest = await this.emailService.testConnection();
 
         return {
@@ -116,8 +121,8 @@ export class HealthController {
             connectionTest,
             status: connectionTest.success ? 'configured' : 'misconfigured',
             message: connectionTest.success
-                ? 'MailerSend API is properly configured and ready'
-                : 'MailerSend API connection failed - check API key',
+                ? 'Gmail SMTP is properly configured and ready'
+                : connectionTest.message || 'Gmail SMTP connection failed',
         };
     }
 }
