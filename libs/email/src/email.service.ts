@@ -105,9 +105,13 @@ export class EmailService {
             this.logger.log(`✅ OTP email sent to ${email}`);
             return true;
         } catch (error) {
-            this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message);
+            this.logger.error(`❌ Failed to send OTP email to ${email}`);
+            this.logger.error('Error message:', error.message || 'No message');
+            this.logger.error('Error name:', error.name || 'No name');
+            this.logger.error('Full error:', JSON.stringify(error, null, 2));
             if (error.response) {
-                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
+                this.logger.error('Response status:', error.response.status);
+                this.logger.error('Response data:', JSON.stringify(error.response.body || error.response.data, null, 2));
             }
             return false;
         }
@@ -144,10 +148,8 @@ export class EmailService {
             this.logger.log(`✅ Welcome email sent to ${email}`);
             return true;
         } catch (error) {
-            this.logger.error(`❌ Failed to send welcome email to ${email}:`, error.message);
-            if (error.response) {
-                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
-            }
+            this.logger.error(`❌ Failed to send welcome email to ${email}`);
+            this.logger.error('Full error:', JSON.stringify(error, null, 2));
             return false;
         }
     }
@@ -175,10 +177,8 @@ export class EmailService {
             this.logger.log(`✅ Test email sent to ${email}`);
             return true;
         } catch (error) {
-            this.logger.error(`❌ Failed to send test email to ${email}:`, error.message);
-            if (error.response) {
-                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
-            }
+            this.logger.error(`❌ Failed to send test email to ${email}`);
+            this.logger.error('Full error:', JSON.stringify(error, null, 2));
             return false;
         }
     }
