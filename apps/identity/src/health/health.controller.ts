@@ -91,24 +91,23 @@ export class HealthController {
     }
 
     @Get('smtp')
-    @ApiOperation({ summary: 'SendGrid API configuration and connection test' })
+    @ApiOperation({ summary: 'MailerSend API configuration and connection test' })
     @ApiResponse({
         status: 200,
-        description: 'SendGrid API diagnostic information',
+        description: 'MailerSend API diagnostic information',
     })
     async smtpCheck() {
-        // Get SendGrid API configuration (hide API key)
-        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
-            this.configService.get<string>('SMTP_PASS');
-
+        // Get MailerSend API configuration (hide API key)
+        const apiKey = this.configService.get<string>('MAILERSEND_API_KEY');
+        
         const smtpConfig = {
             from: this.configService.get<string>('SMTP_FROM'),
             hasApiKey: !!apiKey,
             apiKeyLength: apiKey?.length || 0,
-            apiKeyValid: apiKey?.startsWith('SG.') || false,
+            apiKeyValid: apiKey?.startsWith('mlsn.') || false,
         };
 
-        // Test SendGrid connection
+        // Test MailerSend connection
         const connectionTest = await this.emailService.testConnection();
 
         return {
@@ -117,8 +116,8 @@ export class HealthController {
             connectionTest,
             status: connectionTest.success ? 'configured' : 'misconfigured',
             message: connectionTest.success
-                ? 'SendGrid API is properly configured and ready'
-                : 'SendGrid API connection failed - check API key',
+                ? 'MailerSend API is properly configured and ready'
+                : 'MailerSend API connection failed - check API key',
         };
     }
 }

@@ -1,79 +1,67 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import sgMail from '@sendgrid/mail';
+import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend';
 import * as ejs from 'ejs';
 import * as path from 'path';
 
 /**
- * EmailService - Production-ready email service using SendGrid HTTP API
+ * EmailService - Production-ready email service using MailerSend API
  * 
  * Features:
  * - Send OTP verification emails
  * - Send welcome emails
  * - EJS templates for professional emails
- * - SendGrid HTTP API (bypasses SMTP port blocking on Railway)
+ * - MailerSend HTTP API (bypasses SMTP port blocking on Railway)
+ * - 12,000 emails/month free tier (vs SendGrid's 3,000)
  * - Error handling and logging
  * 
  * Environment Variables Required:
- * - SENDGRID_API_KEY: SendGrid API key (SG.xxx)
- * - SMTP_FROM: From email address (must be verified in SendGrid)
+ * - MAILERSEND_API_KEY: MailerSend API key (mlsn.xxx)
+ * - SMTP_FROM: From email address (e.g., noreply@test-xxx.mlsender.net)
  */
 @Injectable()
 export class EmailService {
     private readonly logger = new Logger(EmailService.name);
     private templatesPath: string;
-    private sendGridConfigured: boolean = false;
+    private mailerSend: MailerSend;
+    private mailerSendConfigured: boolean = false;
+    private fromEmail: string;
 
     constructor(private readonly configService: ConfigService) {
         // Use __dirname to get path relative to compiled code location
         // In production: dist/libs/email/src -> go up to email, then into templates
         this.templatesPath = path.join(__dirname, '..', 'templates');
 
-        // Initialize SendGrid HTTP API
-        const apiKey = this.configService.get<string>('SENDGRID_API_KEY') ||
-            this.configService.get<string>('SMTP_PASS'); // Fallback to SMTP_PASS
+        // Initialize MailerSend API
+        const apiKey = this.configService.get<string>('MAILERSEND_API_KEY');
+        this.fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@test-r83qI3pvjoxqzw1j.mlsender.net';
 
-        if (apiKey && apiKey.startsWith('SG.')) {
-            sgMail.setApiKey(apiKey);
-            this.sendGridConfigured = true;
-            this.logger.log('✅ SendGrid API initialized');
-
-            // Test connection
-            this.verifyConnection();
+        if (apiKey && apiKey.startsWith('mlsn.')) {
+            this.mailerSend = new MailerSend({ apiKey });
+            this.mailerSendConfigured = true;
+            this.logger.log('✅ MailerSend API initialized');
+            this.logger.log(`📧 Using from email: ${this.fromEmail}`);
         } else {
-            this.logger.error('❌ SendGrid API key not configured or invalid');
+            this.logger.error('❌ MailerSend API key not configured or invalid');
             this.logger.warn('⚠️  App will continue, but emails will fail');
         }
     }
 
     /**
-     * Verify SendGrid API key on startup
-     */
-    private async verifyConnection(): Promise<void> {
-        try {
-            // SendGrid doesn't have a verify endpoint, so we'll just log success
-            this.logger.log('✅ Email service ready - SendGrid HTTP API configured');
-        } catch (error) {
-            this.logger.error('❌ SendGrid initialization failed:', error.message);
-            this.logger.warn('⚠️  App will continue, but emails will fail');
-        }
-    }
-
-    /**
-     * Test SendGrid connection (diagnostic)
+     * Test MailerSend connection (diagnostic)
      * Returns detailed connection status
      */
     async testConnection(): Promise<any> {
-        if (!this.sendGridConfigured) {
+        if (!this.mailerSendConfigured) {
             return {
                 success: false,
-                message: 'SendGrid API not configured',
+                message: 'MailerSend API not configured',
             };
         }
 
         return {
             success: true,
-            message: 'SendGrid API configured',
+            message: 'MailerSend API configured',
         };
     }
 
@@ -92,8 +80,8 @@ export class EmailService {
      * @param otp - 6-digit OTP code
      */
     async sendOtpEmail(email: string, userName: string, otp: string): Promise<boolean> {
-        if (!this.sendGridConfigured) {
-            this.logger.error('SendGrid not configured, cannot send email');
+        if (!this.mailerSendConfigured) {
+            this.logger.error('MailerSend not configured, cannot send email');
             return false;
         }
 
@@ -104,21 +92,22 @@ export class EmailService {
                 otpCode: otp,
             });
 
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
-            const msg = {
-                to: email,
-                from: fromEmail,
-                subject: 'Verify Your Email - OTC Platform',
-                html,
-            };
+            const sentFrom = new Sender(this.fromEmail, 'OTC Platform');
+            const recipients = [new Recipient(email, userName)];
 
-            await sgMail.send(msg);
+            const emailParams = new EmailParams()
+                .setFrom(sentFrom)
+                .setTo(recipients)
+                .setSubject('Verify Your Email - OTC Platform')
+                .setHtml(html);
+
+            await this.mailerSend.email.send(emailParams);
             this.logger.log(`✅ OTP email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message);
             if (error.response) {
-                this.logger.error('SendGrid error:', error.response.body);
+                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
             }
             return false;
         }
@@ -131,8 +120,8 @@ export class EmailService {
      * @param userName - User's name
      */
     async sendWelcomeEmail(email: string, userName: string): Promise<boolean> {
-        if (!this.sendGridConfigured) {
-            this.logger.error('SendGrid not configured, cannot send email');
+        if (!this.mailerSendConfigured) {
+            this.logger.error('MailerSend not configured, cannot send email');
             return false;
         }
 
@@ -142,21 +131,22 @@ export class EmailService {
                 userName,
             });
 
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
-            const msg = {
-                to: email,
-                from: fromEmail,
-                subject: '🎉 Welcome to OTC Platform!',
-                html,
-            };
+            const sentFrom = new Sender(this.fromEmail, 'OTC Platform');
+            const recipients = [new Recipient(email, userName)];
 
-            await sgMail.send(msg);
+            const emailParams = new EmailParams()
+                .setFrom(sentFrom)
+                .setTo(recipients)
+                .setSubject('🎉 Welcome to OTC Platform!')
+                .setHtml(html);
+
+            await this.mailerSend.email.send(emailParams);
             this.logger.log(`✅ Welcome email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send welcome email to ${email}:`, error.message);
             if (error.response) {
-                this.logger.error('SendGrid error:', error.response.body);
+                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
             }
             return false;
         }
@@ -166,27 +156,28 @@ export class EmailService {
      * Send test email (for debugging)
      */
     async sendTestEmail(email: string): Promise<boolean> {
-        if (!this.sendGridConfigured) {
-            this.logger.error('SendGrid not configured, cannot send email');
+        if (!this.mailerSendConfigured) {
+            this.logger.error('MailerSend not configured, cannot send email');
             return false;
         }
 
         try {
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || 'noreply@otcplatform.com';
-            const msg = {
-                to: email,
-                from: fromEmail,
-                subject: 'Test Email - OTC Platform',
-                html: '<h1>Test Email</h1><p>If you received this, SendGrid HTTP API is working!</p>',
-            };
+            const sentFrom = new Sender(this.fromEmail, 'OTC Platform');
+            const recipients = [new Recipient(email, 'Test User')];
 
-            await sgMail.send(msg);
+            const emailParams = new EmailParams()
+                .setFrom(sentFrom)
+                .setTo(recipients)
+                .setSubject('Test Email - OTC Platform')
+                .setHtml('<h1>Test Email</h1><p>If you received this, MailerSend API is working!</p>');
+
+            await this.mailerSend.email.send(emailParams);
             this.logger.log(`✅ Test email sent to ${email}`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send test email to ${email}:`, error.message);
             if (error.response) {
-                this.logger.error('SendGrid error:', error.response.body);
+                this.logger.error('MailerSend error:', JSON.stringify(error.response.body));
             }
             return false;
         }
