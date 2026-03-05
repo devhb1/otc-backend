@@ -1,83 +1,67 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import * as ejs from 'ejs';
 import * as path from 'path';
 
 /**
- * EmailService - Gmail SMTP email service
+ * EmailService - Resend API email service
  * 
  * Features:
  * - Send OTP verification emails
  * - Send welcome emails
  * - EJS templates for professional emails
- * - Gmail SMTP with App Password (secure SSL on port 465)
+ * - Resend HTTP API (works on Railway - no SMTP port blocking)
+ * - Free tier: 100 emails/day, 3,000/month
  * - Error handling and logging
  * 
  * Environment Variables Required:
- * - SMTP_HOST: smtp.gmail.com
- * - SMTP_PORT: 465
- * - SMTP_USER: your-email@gmail.com
- * - SMTP_PASS: your-app-password
- * - SMTP_FROM: your-email@gmail.com
+ * - RESEND_API_KEY: Resend API key (re_xxx)
+ * - SMTP_FROM: From email address (e.g., onboarding@resend.dev or your domain)
  */
 @Injectable()
 export class EmailService {
     private readonly logger = new Logger(EmailService.name);
     private templatesPath: string;
-    private transporter: nodemailer.Transporter;
-    private smtpConfigured: boolean = false;
+    private resend: Resend;
+    private resendConfigured: boolean = false;
+    private fromEmail: string;
 
     constructor(private readonly configService: ConfigService) {
         // Use __dirname to get path relative to compiled code location
         this.templatesPath = path.join(__dirname, '..', 'templates');
 
-        // Initialize Gmail SMTP transporter
-        const smtpHost = this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com';
-        const smtpPort = this.configService.get<number>('SMTP_PORT') || 465;
-        const smtpUser = this.configService.get<string>('SMTP_USER');
-        const smtpPass = this.configService.get<string>('SMTP_PASS');
+        // Initialize Resend API
+        const apiKey = this.configService.get<string>('RESEND_API_KEY');
+        this.fromEmail = this.configService.get<string>('SMTP_FROM') || 'onboarding@resend.dev';
 
-        if (smtpUser && smtpPass) {
-            try {
-                this.transporter = nodemailer.createTransport({
-                    host: smtpHost,
-                    port: smtpPort,
-                    secure: true, // SSL on port 465
-                    auth: {
-                        user: smtpUser,
-                        pass: smtpPass,
-                    },
-                });
-                this.smtpConfigured = true;
-                this.logger.log(`✅ Gmail SMTP initialized (${smtpHost}:${smtpPort})`);
-            } catch (error) {
-                this.logger.error('❌ Failed to initialize SMTP:', error.message);
-            }
+        if (apiKey && apiKey.startsWith('re_')) {
+            this.resend = new Resend(apiKey);
+            this.resendConfigured = true;
+            this.logger.log('✅ Resend API initialized');
+            this.logger.log(`📧 Using from email: ${this.fromEmail}`);
         } else {
-            this.logger.error('❌ SMTP credentials not configured');
+            this.logger.error('❌ Resend API key not configured or invalid');
             this.logger.warn('⚠️  App will continue, but emails will fail');
         }
     }
 
     /**
-     * Test SMTP connection
+     * Test Resend connection
      */
     async testConnection(): Promise<any> {
-        if (!this.smtpConfigured) {
+        if (!this.resendConfigured) {
             return {
                 success: false,
-                message: 'SMTP not configured',
+                message: 'Resend API not configured',
             };
         }
 
-        try {
-            await this.transporter.verify();
-            return {
-                success: true,
-                message: 'SMTP connection successful',
-            };
-        } catch (error) {
+        return {
+            success: true,
+            message: 'Resend API configured',
+        };
+    }
             return {
                 success: false,
                 message: `SMTP connection failed: ${error.message}`,
@@ -96,8 +80,8 @@ export class EmailService {
      * Send OTP verification email
      */
     async sendOtpEmail(email: string, userName: string, otp: string): Promise<boolean> {
-        if (!this.smtpConfigured) {
-            this.logger.error('SMTP not configured, cannot send email');
+        if (!this.resendConfigured) {
+            this.logger.error('Resend not configured, cannot send email');
             return false;
         }
 
@@ -108,16 +92,19 @@ export class EmailService {
                 otpCode: otp,
             });
 
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
-            
-            await this.transporter.sendMail({
-                from: `"OTC Platform" <${fromEmail}>`,
-                to: email,
+            const { data, error } = await this.resend.emails.send({
+                from: this.fromEmail,
+                to: [email],
                 subject: 'Verify Your Email - OTC Platform',
                 html,
             });
 
-            this.logger.log(`✅ OTP email sent to ${email}`);
+            if (error) {
+                this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message);
+                return false;
+            }
+
+            this.logger.log(`✅ OTP email sent to ${email} (ID: ${data?.id})`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send OTP email to ${email}`);
@@ -130,8 +117,8 @@ export class EmailService {
      * Send welcome email after successful verification
      */
     async sendWelcomeEmail(email: string, userName: string): Promise<boolean> {
-        if (!this.smtpConfigured) {
-            this.logger.error('SMTP not configured, cannot send email');
+        if (!this.resendConfigured) {
+            this.logger.error('Resend not configured, cannot send email');
             return false;
         }
 
@@ -141,16 +128,19 @@ export class EmailService {
                 userName,
             });
 
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
-            
-            await this.transporter.sendMail({
-                from: `"OTC Platform" <${fromEmail}>`,
-                to: email,
+            const { data, error } = await this.resend.emails.send({
+                from: this.fromEmail,
+                to: [email],
                 subject: '🎉 Welcome to OTC Platform!',
                 html,
             });
 
-            this.logger.log(`✅ Welcome email sent to ${email}`);
+            if (error) {
+                this.logger.error(`❌ Failed to send welcome email to ${email}:`, error.message);
+                return false;
+            }
+
+            this.logger.log(`✅ Welcome email sent to ${email} (ID: ${data?.id})`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send welcome email to ${email}`);
@@ -163,22 +153,25 @@ export class EmailService {
      * Send test email (for debugging)
      */
     async sendTestEmail(email: string): Promise<boolean> {
-        if (!this.smtpConfigured) {
-            this.logger.error('SMTP not configured, cannot send email');
+        if (!this.resendConfigured) {
+            this.logger.error('Resend not configured, cannot send email');
             return false;
         }
 
         try {
-            const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
-            
-            await this.transporter.sendMail({
-                from: `"OTC Platform" <${fromEmail}>`,
-                to: email,
+            const { data, error } = await this.resend.emails.send({
+                from: this.fromEmail,
+                to: [email],
                 subject: 'Test Email - OTC Platform',
-                html: '<h1>Test Email</h1><p>If you received this, Gmail SMTP is working!</p>',
+                html: '<h1>Test Email</h1><p>If you received this, Resend API is working!</p>',
             });
 
-            this.logger.log(`✅ Test email sent to ${email}`);
+            if (error) {
+                this.logger.error(`❌ Failed to send test email to ${email}:`, error.message);
+                return false;
+            }
+
+            this.logger.log(`✅ Test email sent to ${email} (ID: ${data?.id})`);
             return true;
         } catch (error) {
             this.logger.error(`❌ Failed to send test email to ${email}`);

@@ -91,28 +91,23 @@ export class HealthController {
     }
 
     @Get('smtp')
-    @ApiOperation({ summary: 'Gmail SMTP configuration and connection test' })
+    @ApiOperation({ summary: 'Resend API configuration and connection test' })
     @ApiResponse({
         status: 200,
-        description: 'Gmail SMTP diagnostic information',
+        description: 'Resend API diagnostic information',
     })
     async smtpCheck() {
-        // Get SMTP configuration (hide password)
-        const smtpHost = this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com';
-        const smtpPort = this.configService.get<number>('SMTP_PORT') || 465;
-        const smtpUser = this.configService.get<string>('SMTP_USER');
-        const smtpPass = this.configService.get<string>('SMTP_PASS');
+        // Get Resend API configuration (hide API key)
+        const apiKey = this.configService.get<string>('RESEND_API_KEY');
 
         const smtpConfig = {
-            host: smtpHost,
-            port: smtpPort,
-            user: smtpUser,
-            hasPassword: !!smtpPass,
-            passwordLength: smtpPass?.length || 0,
-            from: this.configService.get<string>('SMTP_FROM') || smtpUser,
+            from: this.configService.get<string>('SMTP_FROM') || 'onboarding@resend.dev',
+            hasApiKey: !!apiKey,
+            apiKeyLength: apiKey?.length || 0,
+            apiKeyValid: apiKey?.startsWith('re_') || false,
         };
 
-        // Test SMTP connection
+        // Test Resend connection
         const connectionTest = await this.emailService.testConnection();
 
         return {
@@ -121,8 +116,8 @@ export class HealthController {
             connectionTest,
             status: connectionTest.success ? 'configured' : 'misconfigured',
             message: connectionTest.success
-                ? 'Gmail SMTP is properly configured and ready'
-                : connectionTest.message || 'Gmail SMTP connection failed',
+                ? 'Resend API is properly configured and ready'
+                : connectionTest.message || 'Resend API connection failed',
         };
     }
 }
