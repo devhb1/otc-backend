@@ -62,12 +62,6 @@ export class EmailService {
             message: 'Resend API configured',
         };
     }
-            return {
-                success: false,
-                message: `SMTP connection failed: ${error.message}`,
-            };
-        }
-    }
 
     /**
      * Generate a 6-digit OTP
