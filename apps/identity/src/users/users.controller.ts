@@ -16,6 +16,49 @@ export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
     /**
+     * Get dashboard / home page data
+     * 
+     * Returns comprehensive information for the home/dashboard page:
+     * - User profile with wallets
+     * - Platform overview and explanation
+     * - Quick actions and next steps
+     */
+    @Get('dashboard')
+    @ApiOperation({ summary: 'Get dashboard/home page data' })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Dashboard data retrieved successfully',
+        schema: {
+            example: {
+                user: {
+                    id: 'uuid',
+                    email: 'user@example.com',
+                    role: 'BUYER',
+                    kycStatus: 'PENDING',
+                    wallets: [
+                        { currency: 'MAAL', balance: '0.00', lockedBalance: '0.00' },
+                        { currency: 'USDT', balance: '0.00', lockedBalance: '0.00' },
+                    ]
+                },
+                platform: {
+                    name: 'OTC Platform',
+                    description: 'Secure peer-to-peer cryptocurrency trading platform',
+                    features: ['Escrow Protection', 'Multi-Currency Support', 'KYC Verification']
+                },
+                quickStats: {
+                    totalWallets: 3,
+                    activeOrders: 0,
+                    completedTrades: 0
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async getDashboard(@Req() req) {
+        return this.usersService.getDashboard(req.user.id);
+    }
+
+    /**
      * Get current user profile
      */
     @Get('me')
