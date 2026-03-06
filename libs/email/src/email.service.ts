@@ -17,7 +17,7 @@ import * as path from 'path';
  * 
  * Environment Variables Required:
  * - RESEND_API_KEY: Resend API key (re_xxx)
- * - SMTP_FROM: From email address (e.g., onboarding@resend.dev or your domain)
+ * - SMTP_FROM: From email address (e.g., onboarding@resend.dev or your verified domain)
  */
 @Injectable()
 export class EmailService {
